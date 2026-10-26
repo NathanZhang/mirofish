@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from zep_cloud import BatchAddItem, EntityEdgeSourceTarget, NotFoundError
 
 from ..config import Config
+from .graph_store import LazyCloudClient, get_graph_store, is_local_graph
 from ..models.task import TaskManager, TaskStatus
 from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
 from ..utils.ontology import (
@@ -58,7 +59,7 @@ class BatchSubmission:
     item_count: int
 
 
-class GraphBuilderService:
+class GraphBuilderService(LazyCloudClient):
     """
     图谱构建服务
     负责调用Zep API构建知识图谱
@@ -66,10 +67,7 @@ class GraphBuilderService:
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or Config.ZEP_API_KEY
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
-        
-        self.client = get_zep_client(self.api_key)
+        self._client = None
         self.task_manager = TaskManager()
     
     def build_graph_async(
@@ -807,6 +805,8 @@ class GraphBuilderService:
         Returns:
             包含nodes和edges的字典，包括时间信息、属性等详细数据
         """
+        if is_local_graph(graph_id):
+            return get_graph_store(graph_id).export(graph_id)
         nodes = fetch_all_nodes(self.client, graph_id)
         edges = fetch_all_edges(self.client, graph_id)
 
@@ -876,4 +876,6 @@ class GraphBuilderService:
     
     def delete_graph(self, graph_id: str):
         """删除图谱"""
+        if is_local_graph(graph_id):
+            return get_graph_store(graph_id).delete_graph(graph_id)
         self.client.graph.delete(graph_id=graph_id)

@@ -8,6 +8,7 @@ gracefully adapting request parameters for GPT-5 family models.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+import os
 
 
 def is_gpt5_family(model: Optional[str]) -> bool:
@@ -42,6 +43,9 @@ def create_chat_completion(
 
     if response_format is not None:
         kwargs["response_format"] = response_format
+    thinking = os.environ.get('LLM_ENABLE_THINKING')
+    if thinking is not None and model.lower().startswith('qwen'):
+        kwargs['extra_body'] = {'chat_template_kwargs': {'enable_thinking': thinking.lower() == 'true'}}
 
     gpt5_family = is_gpt5_family(model)
 

@@ -10,6 +10,8 @@ from flask import request, jsonify, send_file
 
 from . import simulation_bp
 from ..config import Config
+from ..services.graph_store import is_local_graph, get_graph_store
+from ..services.graph_store.protocol import GraphStoreError
 from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
@@ -87,7 +89,7 @@ def get_graph_entities(graph_id: str):
         enrich: 是否获取相关边信息（默认true）
     """
     try:
-        if not Config.ZEP_API_KEY:
+        if not is_local_graph(graph_id) and not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
                 "error": t('api.zepApiKeyMissing')
@@ -111,6 +113,8 @@ def get_graph_entities(graph_id: str):
             "data": result.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取图谱实体失败: {str(e)}")
         return jsonify({
@@ -124,7 +128,7 @@ def get_graph_entities(graph_id: str):
 def get_entity_detail(graph_id: str, entity_uuid: str):
     """获取单个实体的详细信息"""
     try:
-        if not Config.ZEP_API_KEY:
+        if not is_local_graph(graph_id) and not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
                 "error": t('api.zepApiKeyMissing')
@@ -144,6 +148,8 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
             "data": entity.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取实体详情失败: {str(e)}")
         return jsonify({
@@ -157,7 +163,7 @@ def get_entity_detail(graph_id: str, entity_uuid: str):
 def get_entities_by_type(graph_id: str, entity_type: str):
     """获取指定类型的所有实体"""
     try:
-        if not Config.ZEP_API_KEY:
+        if not is_local_graph(graph_id) and not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
                 "error": t('api.zepApiKeyMissing')
@@ -181,6 +187,8 @@ def get_entities_by_type(graph_id: str, entity_type: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取实体失败: {str(e)}")
         return jsonify({
@@ -258,6 +266,8 @@ def create_simulation():
             "data": state.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"创建模拟失败: {str(e)}")
         return jsonify({
@@ -382,6 +392,8 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
                 "config_generated": config_generated
             }
             
+    except GraphStoreError:
+        raise
     except Exception as e:
         return False, {"reason": f"读取状态文件失败: {str(e)}"}
 
@@ -665,6 +677,8 @@ def prepare_simulation():
             "error": str(e)
         }), 404
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"启动准备任务失败: {str(e)}")
         return jsonify({
@@ -779,6 +793,8 @@ def get_prepare_status():
             "data": task_dict
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"查询任务状态失败: {str(e)}")
         return jsonify({
@@ -811,6 +827,8 @@ def get_simulation(simulation_id: str):
             "data": result
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取模拟状态失败: {str(e)}")
         return jsonify({
@@ -840,6 +858,8 @@ def list_simulations():
             "count": len(simulations)
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"列出模拟失败: {str(e)}")
         return jsonify({
@@ -903,6 +923,8 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
         matching_reports.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return matching_reports[0].get("report_id")
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.warning(f"查找 simulation {simulation_id} 的 report 失败: {e}")
         return None
@@ -1013,6 +1035,8 @@ def get_simulation_history():
             "count": len(enriched_simulations)
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取历史模拟失败: {str(e)}")
         return jsonify({
@@ -1051,6 +1075,8 @@ def get_simulation_profiles(simulation_id: str):
             "error": str(e)
         }), 404
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取Profile失败: {str(e)}")
         return jsonify({
@@ -1166,6 +1192,8 @@ def get_simulation_profiles_realtime(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"实时获取Profile失败: {str(e)}")
         return jsonify({
@@ -1296,6 +1324,8 @@ def get_simulation_config_realtime(simulation_id: str):
             "data": response_data
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"实时获取Config失败: {str(e)}")
         return jsonify({
@@ -1332,6 +1362,8 @@ def get_simulation_config(simulation_id: str):
             "data": config
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取配置失败: {str(e)}")
         return jsonify({
@@ -1361,6 +1393,8 @@ def download_simulation_config(simulation_id: str):
             download_name="simulation_config.json"
         )
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"下载配置失败: {str(e)}")
         return jsonify({
@@ -1413,6 +1447,8 @@ def download_simulation_script(script_name: str):
             download_name=script_name
         )
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"下载脚本失败: {str(e)}")
         return jsonify({
@@ -1487,6 +1523,8 @@ def generate_profiles():
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"生成Profile失败: {str(e)}")
         return jsonify({
@@ -1595,6 +1633,13 @@ def start_simulation():
                 "error": t('api.simulationNotFound', id=simulation_id)
             }), 404
 
+        if is_local_graph(state.graph_id):
+            from ..services.graph_store.protocol import GraphBusy
+            metadata = get_graph_store(state.graph_id).request('GET', f'graphs/{state.graph_id}/metadata/details')
+            import json as _json
+            if _json.loads(metadata['build_spec']).get('run_id'):
+                raise GraphBusy('首期每张图仅允许一次模拟；重跑须先重建图谱，原日志和报告保留')
+            enable_graph_memory_update = True
         force_restarted = False
         
         # 智能处理状态：如果准备工作已完成，允许重新启动
@@ -1776,6 +1821,8 @@ def start_simulation():
             "error": str(e)
         }), 400
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"启动模拟失败: {str(e)}")
         return jsonify({
@@ -1843,6 +1890,8 @@ def stop_simulation():
             "error": str(e)
         }), 400
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"停止模拟失败: {str(e)}")
         simulation_id = (request.get_json(silent=True) or {}).get('simulation_id')
@@ -1911,6 +1960,8 @@ def get_run_status(simulation_id: str):
             "data": run_state.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取运行状态失败: {str(e)}")
         return jsonify({
@@ -2012,6 +2063,8 @@ def get_run_status_detail(simulation_id: str):
             "data": result
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取详细状态失败: {str(e)}")
         return jsonify({
@@ -2066,6 +2119,8 @@ def get_simulation_actions(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取动作历史失败: {str(e)}")
         return jsonify({
@@ -2106,6 +2161,8 @@ def get_simulation_timeline(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取时间线失败: {str(e)}")
         return jsonify({
@@ -2133,6 +2190,8 @@ def get_agent_stats(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取Agent统计失败: {str(e)}")
         return jsonify({
@@ -2213,6 +2272,8 @@ def get_simulation_posts(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取帖子失败: {str(e)}")
         return jsonify({
@@ -2290,6 +2351,8 @@ def get_simulation_comments(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取评论失败: {str(e)}")
         return jsonify({
@@ -2421,6 +2484,8 @@ def interview_agent():
             "error": t('api.interviewTimeout', error=str(e))
         }), 504
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"Interview失败: {str(e)}")
         return jsonify({
@@ -2559,6 +2624,8 @@ def interview_agents_batch():
             "error": t('api.batchInterviewTimeout', error=str(e))
         }), 504
 
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"批量Interview失败: {str(e)}")
         return jsonify({
@@ -2662,6 +2729,8 @@ def interview_all_agents():
             "error": t('api.globalInterviewTimeout', error=str(e))
         }), 504
 
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"全局Interview失败: {str(e)}")
         return jsonify({
@@ -2734,6 +2803,8 @@ def get_interview_history():
             }
         })
 
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取Interview历史失败: {str(e)}")
         return jsonify({
@@ -2799,6 +2870,8 @@ def get_env_status():
             }
         })
 
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取环境状态失败: {str(e)}")
         return jsonify({
@@ -2869,6 +2942,8 @@ def close_simulation_env():
             "error": str(e)
         }), 400
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"关闭环境失败: {str(e)}")
         return jsonify({

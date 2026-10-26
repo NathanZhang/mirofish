@@ -667,10 +667,12 @@ class ZepGraphMemoryManager:
             if simulation_id in cls._updaters:
                 cls._updaters[simulation_id].stop()
             
-            updater = ZepGraphMemoryUpdater(
-                graph_id,
-                simulation_id=simulation_id,
-            )
+            from .graph_store import is_local_graph
+            if is_local_graph(graph_id):
+                from .graph_store.memory import GraphitiMemoryUpdater
+                updater = GraphitiMemoryUpdater(graph_id, simulation_id)
+            else:
+                updater = ZepGraphMemoryUpdater(graph_id, simulation_id=simulation_id)
             updater.start()
             cls._updaters[simulation_id] = updater
             cls._stop_all_done = False

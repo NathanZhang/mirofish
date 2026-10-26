@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from zep_cloud import NotFoundError
 
 from ..config import Config
+from .graph_store import LazyCloudClient, get_graph_store, is_local_graph
 from ..utils.logger import get_logger
 from ..utils.llm_client import LLMClient
 from ..utils.locale import get_locale, t
@@ -37,6 +38,7 @@ class SearchResult:
     nodes: List[Dict[str, Any]]
     query: str
     total_count: int
+    graph_id: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -54,7 +56,9 @@ class SearchResult:
         if self.facts:
             text_parts.append("\n### 相关事实:")
             for i, fact in enumerate(self.facts, 1):
-                text_parts.append(f"{i}. {fact}")
+                sources = [e for e in self.edges if e.get('fact') == fact and e.get('episodes')]
+                provenance = ' '.join(f"[事实 {e['uuid']}；来源 {','.join(e['episodes'])}]" for e in sources)
+                text_parts.append(f"{i}. {fact} {provenance}".rstrip())
         
         return "\n".join(text_parts)
 
@@ -91,6 +95,7 @@ class EdgeInfo:
     fact: str
     source_node_uuid: str
     target_node_uuid: str
+    episodes: List[str] = field(default_factory=list)
     source_node_name: Optional[str] = None
     target_node_name: Optional[str] = None
     # 时间信息
@@ -106,6 +111,7 @@ class EdgeInfo:
             "fact": self.fact,
             "source_node_uuid": self.source_node_uuid,
             "target_node_uuid": self.target_node_uuid,
+            "episodes": self.episodes,
             "source_node_name": self.source_node_name,
             "target_node_name": self.target_node_name,
             "created_at": self.created_at,
@@ -119,6 +125,8 @@ class EdgeInfo:
         source = self.source_node_name or self.source_node_uuid[:8]
         target = self.target_node_name or self.target_node_uuid[:8]
         base_text = f"关系: {source} --[{self.name}]--> {target}\n事实: {self.fact}"
+        if self.episodes:
+            base_text += f"\n事实ID: {self.uuid}；来源episode: {','.join(self.episodes)}"
         
         if include_temporal:
             valid_at = self.valid_at or "未知"
@@ -403,7 +411,7 @@ class InterviewResult:
         return "\n".join(text_parts)
 
 
-class ZepToolsService:
+class ZepToolsService(LazyCloudClient):
     """
     Zep检索工具服务
     
@@ -429,10 +437,7 @@ class ZepToolsService:
     
     def __init__(self, api_key: Optional[str] = None, llm_client: Optional[LLMClient] = None):
         self.api_key = api_key or Config.ZEP_API_KEY
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
-        
-        self.client = get_zep_client(self.api_key)
+        self._client = None
         # LLM客户端用于InsightForge生成子问题
         self._llm_client = llm_client
         logger.info(t("console.zepToolsInitialized"))
@@ -478,6 +483,9 @@ class ZepToolsService:
         """
         logger.info(t("console.graphSearch", graphId=graph_id, query=query[:50]))
         
+        if is_local_graph(graph_id):
+            data = get_graph_store(graph_id).search(graph_id, query, scope=scope, limit=limit)
+            return SearchResult(facts=data['facts'], edges=data['edges'], nodes=data['nodes'], query=query, total_count=data['total_count'])
         zep_query = normalize_zep_search_query(query)
         zep_limit = normalize_zep_search_limit(limit)
 
@@ -655,6 +663,8 @@ class ZepToolsService:
         """
         logger.info(t("console.fetchingAllNodes", graphId=graph_id))
 
+        if is_local_graph(graph_id):
+            return [NodeInfo(**{k:n[k] for k in ['uuid','name','labels','summary','attributes']}) for n in get_graph_store(graph_id).export(graph_id)['nodes']]
         nodes = fetch_all_nodes(self.client, graph_id)
 
         result = []
@@ -684,6 +694,8 @@ class ZepToolsService:
         """
         logger.info(t("console.fetchingAllEdges", graphId=graph_id))
 
+        if is_local_graph(graph_id):
+            return [EdgeInfo(**{k:v for k,v in e.items() if k in EdgeInfo.__dataclass_fields__}) for e in get_graph_store(graph_id).export(graph_id)['edges']]
         edges = fetch_all_edges(self.client, graph_id)
 
         result = []
@@ -709,7 +721,7 @@ class ZepToolsService:
         logger.info(t("console.fetchedEdges", count=len(result)))
         return result
     
-    def get_node_detail(self, node_uuid: str) -> Optional[NodeInfo]:
+    def get_node_detail(self, node_uuid: str, graph_id: str = None) -> Optional[NodeInfo]:
         """
         获取单个节点的详细信息
         
@@ -719,6 +731,9 @@ class ZepToolsService:
         Returns:
             节点信息或None
         """
+        if graph_id and is_local_graph(graph_id):
+            n = get_graph_store(graph_id).get_node(graph_id, node_uuid)
+            return NodeInfo(**{k:n[k] for k in ['uuid','name','labels','summary','attributes']})
         logger.info(t("console.fetchingNodeDetail", uuid=node_uuid[:8]))
         
         try:
@@ -1041,7 +1056,7 @@ class ZepToolsService:
                 continue
             try:
                 # 单独获取每个相关节点的信息
-                node = self.get_node_detail(uuid)
+                node = self.get_node_detail(uuid, graph_id=graph_id)
                 if node:
                     node_map[uuid] = node
                     entity_type = next((l for l in node.labels if l not in ["Entity", "Node"]), "实体")

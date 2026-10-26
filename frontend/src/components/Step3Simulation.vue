@@ -398,7 +398,7 @@ const doStartSimulation = async () => {
     const params = {
       simulation_id: props.simulationId,
       platform: 'parallel',
-      force: true,  // 强制重新开始
+      force: false,
       enable_graph_memory_update: true  // 开启动态图谱更新
     }
     
@@ -688,9 +688,31 @@ watch(() => props.systemLogs?.length, () => {
   })
 })
 
-onMounted(() => {
+onMounted(async () => {
   addLog(t('log.step3Init'))
   if (props.simulationId) {
+    try {
+      const res = await getRunStatus(props.simulationId)
+      const status = res.data?.runner_status
+      if (res.success && status && status !== 'idle') {
+        runStatus.value = res.data
+        const terminal = ['completed', 'stopped', 'failed'].includes(status)
+        phase.value = terminal ? 2 : 1
+        emit('update-status', status === 'failed' ? 'error' : terminal ? 'completed' : 'processing')
+        if (!terminal) {
+          startStatusPolling()
+          startDetailPolling()
+        }
+        await fetchRunStatusDetail()
+        return
+      }
+    } catch (error) {
+      if (error.response?.status !== 404) {
+        startError.value = error.message
+        emit('update-status', 'error')
+        return
+      }
+    }
     doStartSimulation()
   }
 })

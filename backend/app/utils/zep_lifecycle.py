@@ -29,6 +29,9 @@ def register_graph_reader(graph_id: str, reader_id: str) -> None:
     if not reader_id:
         raise ValueError("reader_id is required")
     with graph_lifecycle_lock(graph_id):
+        from ..services.graph_store import is_local_graph, get_graph_store
+        if is_local_graph(graph_id):
+            get_graph_store(graph_id).acquire_lease(graph_id, reader_id, 'report')
         _graph_readers.setdefault(graph_id, set()).add(reader_id)
 
 
@@ -36,6 +39,9 @@ def unregister_graph_reader(graph_id: str, reader_id: str) -> None:
     """Release a previously registered graph read lease."""
 
     with graph_lifecycle_lock(graph_id):
+        from ..services.graph_store import is_local_graph, get_graph_store
+        if is_local_graph(graph_id):
+            get_graph_store(graph_id).release_lease(graph_id, reader_id)
         readers = _graph_readers.get(graph_id)
         if not readers:
             return

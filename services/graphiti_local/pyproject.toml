@@ -1,0 +1,18 @@
+[project]
+name = "mirofish-graphiti-local"
+version = "0.1.0"
+description = "Isolated local graph service for MiroFish"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "graphiti-core==0.31.2",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "httpx>=0.27,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"

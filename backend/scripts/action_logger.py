@@ -48,7 +48,8 @@ class PlatformActionLogger:
         action_type: str,
         action_args: Optional[Dict[str, Any]] = None,
         result: Optional[str] = None,
-        success: bool = True
+        success: bool = True,
+        source_record: Optional[Dict[str, Any]] = None
     ):
         """记录一个动作"""
         entry = {
@@ -60,6 +61,7 @@ class PlatformActionLogger:
             "action_args": action_args or {},
             "result": result,
             "success": success,
+            "source_record": source_record,
         }
         
         with open(self.log_path, 'a', encoding='utf-8') as f:

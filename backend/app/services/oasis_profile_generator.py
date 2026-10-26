@@ -17,6 +17,7 @@ from datetime import datetime
 
 from openai import OpenAI
 from ..config import Config
+from .graph_store import is_local_graph, get_graph_store
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, get_locale, set_locale, t
 from ..utils.openai_chat_compat import create_chat_completion, extract_chat_completion_text
@@ -360,6 +361,14 @@ class OasisProfileGenerator:
         """
         import concurrent.futures
         
+        if self.graph_id and is_local_graph(self.graph_id):
+            store = get_graph_store(self.graph_id)
+            found = store.search(self.graph_id, entity.name, scope='combined', limit=30)
+            neighbors = store.get_neighbors(self.graph_id, entity.uuid)
+            facts = list(dict.fromkeys(found['facts'] + [e['fact'] for e in neighbors]))
+            summaries = [n['summary'] for n in found['nodes'] if n.get('summary')]
+            return {'facts': facts, 'node_summaries': summaries,
+                    'context': '事实与关系：\n' + '\n'.join(facts) + '\n实体摘要：\n' + '\n'.join(summaries)}
         if not self.zep_client:
             return {"facts": [], "node_summaries": [], "context": ""}
         

@@ -45,6 +45,12 @@ class Project:
     graph_build_task_id: Optional[str] = None
     zep_batch_id: Optional[str] = None
     zep_batch_operation_id: Optional[str] = None
+    graph_backend: str = 'zep_cloud'
+    graph_schema_version: int = 1
+    ingestion_job_id: Optional[str] = None
+    build_revision: Optional[str] = None
+    embedding_profile_id: Optional[str] = None
+    graph_versions: Dict[str, Any] = field(default_factory=dict)
     
     # 配置
     simulation_requirement: Optional[str] = None
@@ -70,6 +76,12 @@ class Project:
             "graph_build_task_id": self.graph_build_task_id,
             "zep_batch_id": self.zep_batch_id,
             "zep_batch_operation_id": self.zep_batch_operation_id,
+            "graph_backend": self.graph_backend,
+            "graph_schema_version": self.graph_schema_version,
+            "ingestion_job_id": self.ingestion_job_id,
+            "build_revision": self.build_revision,
+            "embedding_profile_id": self.embedding_profile_id,
+            "graph_versions": self.graph_versions,
             "simulation_requirement": self.simulation_requirement,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
@@ -97,6 +109,12 @@ class Project:
             graph_build_task_id=data.get('graph_build_task_id'),
             zep_batch_id=data.get('zep_batch_id'),
             zep_batch_operation_id=data.get('zep_batch_operation_id'),
+            graph_backend=data.get('graph_backend', 'zep_cloud'),
+            graph_schema_version=data.get('graph_schema_version', 1),
+            ingestion_job_id=data.get('ingestion_job_id'),
+            build_revision=data.get('build_revision'),
+            embedding_profile_id=data.get('embedding_profile_id'),
+            graph_versions=data.get('graph_versions', {}),
             simulation_requirement=data.get('simulation_requirement'),
             chunk_size=data.get('chunk_size', 500),
             chunk_overlap=data.get('chunk_overlap', 50),
@@ -156,7 +174,8 @@ class ProjectManager:
             name=name,
             status=ProjectStatus.CREATED,
             created_at=now,
-            updated_at=now
+            updated_at=now,
+            graph_backend=Config.GRAPH_BACKEND,
         )
         
         # 创建项目目录结构
@@ -176,8 +195,12 @@ class ProjectManager:
         project.updated_at = datetime.now().isoformat()
         meta_path = cls._get_project_meta_path(project.project_id)
         
-        with open(meta_path, 'w', encoding='utf-8') as f:
+        temporary = meta_path + '.' + uuid.uuid4().hex + '.tmp'
+        with open(temporary, 'w', encoding='utf-8') as f:
             json.dump(project.to_dict(), f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, meta_path)
     
     @classmethod
     def get_project(cls, project_id: str) -> Optional[Project]:

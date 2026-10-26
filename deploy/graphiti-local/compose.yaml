@@ -1,0 +1,27 @@
+name: mirofish-graphiti
+services:
+  neo4j:
+    image: neo4j:5.26.0-community@sha256:69d0bc3286a613bdf6fe0165392f77f5459081f2ddaa04da8cbf6fa7286a38ce
+    platform: linux/arm64
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD}"
+      NEO4J_server_memory_heap_initial__size: 1G
+      NEO4J_server_memory_heap_max__size: 2G
+      NEO4J_server_memory_pagecache_size: 1G
+    mem_limit: 4g
+    cpus: 4
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    stop_grace_period: 60s
+volumes:
+  neo4j-data:
+  neo4j-logs:

@@ -19,6 +19,7 @@ from enum import Enum
 from queue import Queue
 
 from ..config import Config
+from .graph_store import is_local_graph, get_graph_store
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale
 from ..utils.zep import (
@@ -435,6 +436,10 @@ class SimulationRunner:
                 existing and existing.runner_status in active_statuses
             ) or ZepGraphMemoryManager.get_updater(simulation_id) is not None:
                 raise ValueError(f"模拟已在运行或结束处理中: {simulation_id}")
+            if graph_id and is_local_graph(graph_id):
+                if not enable_graph_memory_update:
+                    raise ValueError('本地模式首期模拟要求开启图谱记忆写回')
+                get_graph_store(graph_id).request('POST', f'graphs/{graph_id}/claim-run', json={'run_id': simulation_id})
             cls._save_run_state(state)
         
         # 如果启用图谱记忆更新，创建更新器
@@ -474,6 +479,9 @@ class SimulationRunner:
             state.twitter_running = True
             state.reddit_running = True
         
+        local_single_platform = graph_id and is_local_graph(graph_id) and platform in {'twitter','reddit'}
+        if local_single_platform:
+            script_name = 'run_parallel_simulation.py'
         script_path = os.path.join(cls.SCRIPTS_DIR, script_name)
         
         if not os.path.exists(script_path):
@@ -792,7 +800,11 @@ class SimulationRunner:
         try:
             with open(log_path, 'r', encoding='utf-8') as f:
                 f.seek(position)
-                for line in f:
+                while True:
+                    source_offset = f.tell()
+                    line = f.readline()
+                    if not line:
+                        break
                     line = line.strip()
                     if line:
                         try:
@@ -869,7 +881,7 @@ class SimulationRunner:
                             
                             # 如果启用了图谱记忆更新，将活动发送到Zep
                             if graph_updater:
-                                graph_updater.add_activity_from_dict(action_data, platform)
+                                graph_updater.add_activity_from_dict({**action_data, '_source_path': log_path, '_source_offset': source_offset}, platform)
                             
                         except json.JSONDecodeError:
                             pass

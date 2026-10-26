@@ -1,0 +1,36 @@
+"""Graph SDK objects never cross this application boundary."""
+from typing import Protocol
+
+
+class GraphStoreError(RuntimeError):
+    status_code = 503
+
+
+class GraphNotFound(GraphStoreError):
+    status_code = 404
+
+
+class GraphBusy(GraphStoreError):
+    status_code = 409
+
+
+class IngestionUncertain(GraphBusy):
+    pass
+
+
+class DependencyUnavailable(GraphStoreError):
+    pass
+
+
+class GraphStore(Protocol):
+    def create_graph(self, project_id, ontology, build_spec): ...
+    def submit_ingestion(self, graph_id, items, operation_key): ...
+    def get_ingestion(self, job_id): ...
+    def list_nodes(self, graph_id, cursor=None, limit=100): ...
+    def list_edges(self, graph_id, cursor=None, limit=100): ...
+    def get_node(self, graph_id, node_uuid): ...
+    def get_neighbors(self, graph_id, node_uuid): ...
+    def search(self, graph_id, query, scope="edges", temporal_mode="current", limit=10): ...
+    def get_stats(self, graph_id): ...
+    def finalize_memory(self, graph_id, expected_watermark): ...
+    def delete_graph(self, graph_id): ...

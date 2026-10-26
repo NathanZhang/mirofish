@@ -26,6 +26,9 @@ from ..services.simulation_manager import SimulationManager
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
 from ..services.zep_graph_memory_updater import ZepGraphMemoryManager
 from ..utils.llm_client import LLMResponseError
+from ..services.graph_store import get_graph_store, is_local_graph
+from ..services.graph_store.protocol import GraphStoreError, GraphNotFound
+from ..services.graph_store.build import start_build, refresh_build, get_display_graph
 
 # 获取日志器
 logger = get_logger('mirofish.api')
@@ -89,14 +92,20 @@ def _delete_cloud_graph_if_present(graph_id: str | None) -> None:
                 f"{', '.join(active_simulations)}"
             )
         try:
-            GraphBuilderService(api_key=Config.ZEP_API_KEY).delete_graph(graph_id)
-        except NotFoundError:
+            if is_local_graph(graph_id):
+                get_graph_store(graph_id).delete_graph(graph_id)
+            else:
+                GraphBuilderService(api_key=Config.ZEP_API_KEY).delete_graph(graph_id)
+        except (NotFoundError, GraphNotFound):
             logger.info("Zep Cloud graph already absent: %s", graph_id)
 
 
 def _clear_project_graph_reference(project) -> None:
     project.graph_id = None
     project.graph_build_task_id = None
+    project.ingestion_job_id = None
+    project.build_revision = None
+    project.embedding_profile_id = None
     project.zep_batch_id = None
     project.zep_batch_operation_id = None
     project.error = None
@@ -110,6 +119,8 @@ def _project_build_lock(project_id: str) -> threading.Lock:
 def _project_has_active_build(project) -> bool:
     if project.status != ProjectStatus.GRAPH_BUILDING:
         return False
+    if project.graph_backend == 'graphiti_local' and project.ingestion_job_id:
+        return refresh_build(project)['status'] == 'processing'
     if not project.graph_build_task_id:
         return False
     task = TaskManager().get_task(project.graph_build_task_id)
@@ -142,6 +153,8 @@ def get_project(project_id: str):
             "error": t('api.projectNotFound', id=project_id)
         }), 404
 
+    if project.graph_backend == 'graphiti_local' and project.graph_id:
+        refresh_build(project)
     return jsonify({
         "success": True,
         "data": project.to_dict()
@@ -482,6 +495,11 @@ def _build_graph_impl():
     try:
         logger.info("=== 开始构建图谱 ===")
         
+        local_data = request.get_json(silent=True) or {}
+        local_project = ProjectManager.get_project(local_data.get('project_id', '')) if local_data.get('project_id') else None
+        if local_project and local_project.graph_backend == 'graphiti_local':
+            return jsonify({'success': True, 'data': start_build(local_project, local_data)})
+
         # 检查配置
         errors = []
         if not Config.ZEP_API_KEY:
@@ -831,6 +849,8 @@ def _build_graph_impl():
         
     except GraphInUseError as e:
         return jsonify({"success": False, "error": str(e)}), 409
+    except GraphStoreError:
+        raise
     except Exception as e:
         return jsonify({
             "success": False,
@@ -846,6 +866,9 @@ def get_task(task_id: str):
     """
     查询任务状态
     """
+    for project in ProjectManager.list_projects(limit=None):
+        if project.graph_backend == 'graphiti_local' and project.ingestion_job_id == task_id:
+            return jsonify({'success': True, 'data': refresh_build(project)})
     task = TaskManager().get_task(task_id)
     
     if not task:
@@ -882,6 +905,8 @@ def get_graph_data(graph_id: str):
     获取图谱数据（节点和边）
     """
     try:
+        if is_local_graph(graph_id):
+            return jsonify({'success': True, 'data': get_display_graph(graph_id)})
         if not Config.ZEP_API_KEY:
             return jsonify({
                 "success": False,
@@ -896,6 +921,8 @@ def get_graph_data(graph_id: str):
             "data": graph_data
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         return jsonify({
             "success": False,
@@ -910,12 +937,6 @@ def delete_graph(graph_id: str):
     删除Zep图谱
     """
     try:
-        if not Config.ZEP_API_KEY:
-            return jsonify({
-                "success": False,
-                "error": t('api.zepApiKeyMissing')
-            }), 500
-        
         projects = ProjectManager.find_projects_by_graph_id(graph_id)
         if not projects:
             return jsonify({
@@ -955,6 +976,8 @@ def delete_graph(graph_id: str):
         
     except GraphInUseError as e:
         return jsonify({"success": False, "error": str(e)}), 409
+    except GraphStoreError:
+        raise
     except Exception as e:
         return jsonify({
             "success": False,

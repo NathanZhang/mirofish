@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from zep_cloud import NotFoundError
 
 from ..config import Config
+from .graph_store import LazyCloudClient, get_graph_store, is_local_graph
 from ..utils.logger import get_logger
 from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
 from ..utils.zep import call_zep_read_with_retry, get_zep_client
@@ -67,7 +68,7 @@ class FilteredEntities:
         }
 
 
-class ZepEntityReader:
+class ZepEntityReader(LazyCloudClient):
     """
     Zep实体读取与过滤服务
     
@@ -79,10 +80,7 @@ class ZepEntityReader:
     
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or Config.ZEP_API_KEY
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
-        
-        self.client = get_zep_client(self.api_key)
+        self._client = None
     
     def _call_with_retry(
         self, 
@@ -122,6 +120,8 @@ class ZepEntityReader:
         """
         logger.info(f"获取图谱 {graph_id} 的所有节点...")
 
+        if is_local_graph(graph_id):
+            return get_graph_store(graph_id).export(graph_id)['nodes']
         nodes = fetch_all_nodes(self.client, graph_id)
 
         nodes_data = []
@@ -149,6 +149,8 @@ class ZepEntityReader:
         """
         logger.info(f"获取图谱 {graph_id} 的所有边...")
 
+        if is_local_graph(graph_id):
+            return get_graph_store(graph_id).export(graph_id)['edges']
         edges = fetch_all_edges(self.client, graph_id)
 
         edges_data = []
@@ -255,6 +257,11 @@ class ZepEntityReader:
         filtered_entities = []
         entity_types_found = set()
         
+        if is_local_graph(graph_id) and not defined_entity_types:
+            defined_entity_types = list({label for node in all_nodes for label in node.get('labels', [])
+                                         if Config.is_simulatable_type(label)})
+            if not defined_entity_types:
+                return FilteredEntities(entities=[], entity_types=set(), total_count=len(all_nodes), filtered_count=0)
         for node in all_nodes:
             labels = node.get("labels", [])
             
@@ -352,11 +359,14 @@ class ZepEntityReader:
             EntityNode或None
         """
         try:
-            # 使用重试机制获取节点
-            node = self._call_with_retry(
-                func=lambda: self.client.graph.node.get(uuid_=entity_uuid),
-                operation_name=f"获取节点详情(uuid={entity_uuid[:8]}...)"
-            )
+            if is_local_graph(graph_id):
+                from types import SimpleNamespace
+                node = SimpleNamespace(**get_graph_store(graph_id).get_node(graph_id, entity_uuid))
+            else:
+                node = self._call_with_retry(
+                    func=lambda: self.client.graph.node.get(uuid_=entity_uuid),
+                    operation_name=f"获取节点详情(uuid={entity_uuid[:8]}...)"
+                )
             
             if not node:
                 return None

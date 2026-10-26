@@ -10,6 +10,8 @@ from flask import request, jsonify, send_file
 
 from . import report_bp
 from ..config import Config
+from ..services.graph_store import is_local_graph, get_graph_store
+from ..services.graph_store.protocol import GraphStoreError, GraphBusy
 from ..services.report_agent import ReportAgent, ReportManager, ReportStatus
 from ..services.simulation_manager import SimulationManager
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
@@ -145,6 +147,19 @@ def generate_report():
                 ),
             }), 409
         
+        memory_receipt = None
+        if is_local_graph(graph_id):
+            from pathlib import Path
+            import json as _json
+            receipt_path = Path(Config.OASIS_SIMULATION_DATA_DIR) / simulation_id / 'memory-receipt.json'
+            if not receipt_path.exists():
+                raise GraphBusy('模拟记忆尚未确认完成；请恢复并排空原运行的 outbox')
+            memory_receipt = _json.loads(receipt_path.read_text())
+            stats = get_graph_store(graph_id).get_stats(graph_id)
+            if (memory_receipt.get('graph_id') != graph_id or memory_receipt.get('run_id') != simulation_id
+                    or not stats['finalized'] or stats['committed_watermark'] != memory_receipt['expected_watermark']):
+                raise GraphBusy('报告图谱或记忆完成水位不一致')
+
         simulation_requirement = project.simulation_requirement
         if not simulation_requirement:
             return jsonify({
@@ -269,6 +284,10 @@ def generate_report():
                         progress_callback=progress_callback,
                         report_id=report_id
                     )
+                    if memory_receipt:
+                        report.run_id = memory_receipt['run_id']
+                        report.memory_watermark = memory_receipt['committed_watermark']
+                        report.build_revision = project.build_revision
                     ReportManager.save_report(report)
 
                     if report.status == ReportStatus.COMPLETED:
@@ -310,6 +329,8 @@ def generate_report():
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"启动报告生成任务失败: {str(e)}")
         return jsonify({
@@ -383,6 +404,8 @@ def get_generate_status():
             "data": task.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"查询任务状态失败: {str(e)}")
         return jsonify({
@@ -426,6 +449,8 @@ def get_report(report_id: str):
             "data": report.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取报告失败: {str(e)}")
         return jsonify({
@@ -465,6 +490,8 @@ def get_report_by_simulation(simulation_id: str):
             "has_report": True
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取报告失败: {str(e)}")
         return jsonify({
@@ -505,6 +532,8 @@ def list_reports():
             "count": len(reports)
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"列出报告失败: {str(e)}")
         return jsonify({
@@ -551,6 +580,8 @@ def download_report(report_id: str):
             download_name=f"{report_id}.md"
         )
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"下载报告失败: {str(e)}")
         return jsonify({
@@ -577,6 +608,8 @@ def delete_report(report_id: str):
             "message": t('api.reportDeleted', id=report_id)
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"删除报告失败: {str(e)}")
         return jsonify({
@@ -651,7 +684,8 @@ def chat_with_report_agent():
                 "error": t('api.projectNotFound', id=state.project_id)
             }), 404
         
-        graph_id = state.graph_id or project.graph_id
+        saved_report = ReportManager.get_report_by_simulation(simulation_id)
+        graph_id = saved_report.graph_id if saved_report else (state.graph_id or project.graph_id)
         if not graph_id:
             return jsonify({
                 "success": False,
@@ -667,13 +701,18 @@ def chat_with_report_agent():
             simulation_requirement=simulation_requirement
         )
         
-        result = agent.chat(message=message, chat_history=chat_history)
+        from contextlib import nullcontext
+        lease = get_graph_store(graph_id).lease(graph_id, kind='report') if is_local_graph(graph_id) else nullcontext()
+        with lease:
+            result = agent.chat(message=message, chat_history=chat_history)
         
         return jsonify({
             "success": True,
             "data": result
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"对话失败: {str(e)}")
         return jsonify({
@@ -717,6 +756,8 @@ def get_report_progress(report_id: str):
             "data": progress
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取报告进度失败: {str(e)}")
         return jsonify({
@@ -768,6 +809,8 @@ def get_report_sections(report_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取章节列表失败: {str(e)}")
         return jsonify({
@@ -812,6 +855,8 @@ def get_single_section(report_id: str, section_index: int):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取章节内容失败: {str(e)}")
         return jsonify({
@@ -863,6 +908,8 @@ def check_report_status(simulation_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"检查报告状态失败: {str(e)}")
         return jsonify({
@@ -924,6 +971,8 @@ def get_agent_log(report_id: str):
             "data": log_data
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取Agent日志失败: {str(e)}")
         return jsonify({
@@ -958,6 +1007,8 @@ def stream_agent_log(report_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取Agent日志失败: {str(e)}")
         return jsonify({
@@ -1006,6 +1057,8 @@ def get_console_log(report_id: str):
             "data": log_data
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取控制台日志失败: {str(e)}")
         return jsonify({
@@ -1040,6 +1093,8 @@ def stream_console_log(report_id: str):
             }
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取控制台日志失败: {str(e)}")
         return jsonify({
@@ -1090,6 +1145,8 @@ def search_graph_tool():
             "data": result.to_dict()
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"图谱搜索失败: {str(e)}")
         return jsonify({
@@ -1130,6 +1187,8 @@ def get_graph_statistics_tool():
             "data": result
         })
         
+    except GraphStoreError:
+        raise
     except Exception as e:
         logger.error(f"获取图谱统计失败: {str(e)}")
         return jsonify({

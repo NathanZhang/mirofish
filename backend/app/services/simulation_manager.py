@@ -48,6 +48,11 @@ class SimulationState:
     project_id: str
     graph_id: str
     
+    graph_backend: str = 'zep_cloud'
+    source_graph_id: Optional[str] = None
+    run_graph_id: Optional[str] = None
+    run_id: Optional[str] = None
+    memory_watermark: Optional[int] = None
     # 平台启用状态
     enable_twitter: bool = True
     enable_reddit: bool = True
@@ -83,6 +88,11 @@ class SimulationState:
             "simulation_id": self.simulation_id,
             "project_id": self.project_id,
             "graph_id": self.graph_id,
+            "graph_backend": self.graph_backend,
+            "source_graph_id": self.source_graph_id,
+            "run_graph_id": self.run_graph_id,
+            "run_id": self.run_id,
+            "memory_watermark": self.memory_watermark,
             "enable_twitter": self.enable_twitter,
             "enable_reddit": self.enable_reddit,
             "status": self.status.value,
@@ -185,6 +195,11 @@ class SimulationManager:
             simulation_id=simulation_id,
             project_id=data.get("project_id", ""),
             graph_id=data.get("graph_id", ""),
+            graph_backend=data.get("graph_backend", "zep_cloud"),
+            source_graph_id=data.get("source_graph_id"),
+            run_graph_id=data.get("run_graph_id"),
+            run_id=data.get("run_id"),
+            memory_watermark=data.get("memory_watermark"),
             enable_twitter=data.get("enable_twitter", True),
             enable_reddit=data.get("enable_reddit", True),
             status=SimulationStatus(data.get("status", "created")),
@@ -236,12 +251,27 @@ class SimulationManager:
             status=SimulationStatus.CREATED,
         )
         
+        from .graph_store import backend_for_graph
+        state.graph_backend = backend_for_graph(graph_id)
+        state.source_graph_id = graph_id
+        state.run_graph_id = graph_id
+        state.run_id = simulation_id
         self._save_simulation_state(state)
         logger.info(f"创建模拟: {simulation_id}, project={project_id}, graph={graph_id}")
         
         return state
     
-    def prepare_simulation(
+    def prepare_simulation(self, simulation_id, *args, **kwargs):
+        from contextlib import nullcontext
+        from .graph_store import is_local_graph, get_graph_store
+        state = self._load_simulation_state(simulation_id)
+        lease = (get_graph_store(state.graph_id).lease(state.graph_id,
+                 owner=f'prepare_{simulation_id}', kind='report')
+                 if state and is_local_graph(state.graph_id) else nullcontext())
+        with lease:
+            return self._prepare_simulation_impl(simulation_id, *args, **kwargs)
+
+    def _prepare_simulation_impl(
         self,
         simulation_id: str,
         simulation_requirement: str,

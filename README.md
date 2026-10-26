@@ -93,6 +93,10 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 
 ## 🚀 Quick Start
 
+For the local Graphiti + Neo4j backend without a Zep Cloud key, see the [local deployment and recovery guide](deploy/graphiti-local/README.md).
+
+After local setup, run `./start.sh` to start Neo4j, Embedding, Graphiti, the backend, and the frontend. Use `./status.sh`, `./stop.sh`, or `./restart.sh` to manage the stack. Stopping preserves data; the existing shared LLM service is managed separately.
+
 ### Option 1: Source Code Deployment (Recommended)
 
 #### Prerequisites

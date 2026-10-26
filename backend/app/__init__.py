@@ -20,6 +20,11 @@ def create_app(config_class=Config):
     """Flask应用工厂函数"""
     app = Flask(__name__)
     app.config.from_object(config_class)
+    from .services.graph_store.protocol import GraphStoreError
+
+    @app.errorhandler(GraphStoreError)
+    def graph_store_error(error):
+        return {'success': False, 'error': str(error)}, error.status_code
     
     # 设置JSON编码：确保中文直接显示（而不是 \uXXXX 格式）
     # Flask >= 2.3 使用 app.json.ensure_ascii，旧版本使用 JSON_AS_ASCII 配置
@@ -72,6 +77,16 @@ def create_app(config_class=Config):
     @app.route('/health')
     def health():
         return {'status': 'ok', 'service': 'MiroFish Backend'}
+
+    @app.route('/ready')
+    def ready():
+        errors = Config.validate()
+        if errors:
+            return {'ready': False, 'errors': errors}, 503
+        if Config.GRAPH_BACKEND == 'graphiti_local':
+            from .services.graph_store import get_graph_store
+            return get_graph_store(backend='graphiti_local').request('GET', 'readyz')
+        return {'ready': True, 'graph_backend': Config.GRAPH_BACKEND}
     
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")

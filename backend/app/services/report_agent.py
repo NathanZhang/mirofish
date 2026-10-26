@@ -451,6 +451,9 @@ class Report:
     created_at: str = ""
     completed_at: str = ""
     error: Optional[str] = None
+    run_id: Optional[str] = None
+    build_revision: Optional[str] = None
+    memory_watermark: Optional[int] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -458,6 +461,9 @@ class Report:
             "simulation_id": self.simulation_id,
             "graph_id": self.graph_id,
             "simulation_requirement": self.simulation_requirement,
+            "run_id": self.run_id,
+            "build_revision": self.build_revision,
+            "memory_watermark": self.memory_watermark,
             "status": self.status.value,
             "outline": self.outline.to_dict() if self.outline else None,
             "markdown_content": self.markdown_content,
@@ -911,7 +917,14 @@ class ReportAgent:
         
         self.llm = llm_client or LLMClient()
         self.zep_tools = zep_tools or ZepToolsService()
-        
+        self.MAX_TOOL_CALLS_PER_SECTION = max(1, Config.REPORT_AGENT_MAX_TOOL_CALLS)
+        self.MAX_REFLECTION_ROUNDS = max(0, Config.REPORT_AGENT_MAX_REFLECTION_ROUNDS)
+
+        self._local_run_evidence = ''
+        from .graph_store import is_local_graph
+        if is_local_graph(graph_id):
+            from .graph_store.evidence import read_run_evidence
+            self._local_run_evidence = json.dumps(read_run_evidence(simulation_id), ensure_ascii=False)
         # 工具定义
         self.tools = self._define_tools()
         
@@ -1212,6 +1225,8 @@ class ReportAgent:
             related_facts_json=json.dumps(context.get('related_facts', [])[:10], ensure_ascii=False, indent=2),
         )
 
+        if getattr(self, '_local_run_evidence', ''):
+            user_prompt += '\n实际模拟动作及计数：\n' + self._local_run_evidence
         try:
             response = self.llm.chat_json(
                 messages=[
@@ -1316,6 +1331,8 @@ class ReportAgent:
             section_title=section.title,
         )
 
+        if getattr(self, '_local_run_evidence', ''):
+            user_prompt += '\n\n已读取的真实动作工具结果（区分原始材料与实际模拟；无证据处明确说明局限）：\n' + self._local_run_evidence
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -1639,6 +1656,9 @@ class ReportAgent:
             )
             ReportManager.save_report(report)
             
+            if self._local_run_evidence:
+                self.report_logger.log_tool_call('运行证据', -1, 'read_simulation_actions', {'simulation_id': self.simulation_id}, 0)
+                self.report_logger.log_tool_result('运行证据', -1, 'read_simulation_actions', self._local_run_evidence, 0)
             # 阶段1: 规划大纲
             report.status = ReportStatus.PLANNING
             ReportManager.update_progress(
@@ -2473,6 +2493,8 @@ class ReportManager:
     @classmethod
     def save_report(cls, report: Report) -> None:
         """保存报告元信息和完整报告"""
+        from .graph_store.evidence import bind_report_provenance
+        bind_report_provenance(report)
         cls._ensure_report_folder(report.report_id)
         
         # 保存元信息JSON
@@ -2534,6 +2556,9 @@ class ReportManager:
             report_id=data['report_id'],
             simulation_id=data['simulation_id'],
             graph_id=data['graph_id'],
+            run_id=data.get('run_id'),
+            build_revision=data.get('build_revision'),
+            memory_watermark=data.get('memory_watermark'),
             simulation_requirement=data['simulation_requirement'],
             status=ReportStatus(data['status']),
             outline=outline,

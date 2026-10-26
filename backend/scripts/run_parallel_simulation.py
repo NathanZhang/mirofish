@@ -156,6 +156,7 @@ def init_logging_for_simulation(simulation_dir: str):
 
 
 from action_logger import SimulationLogManager, PlatformActionLogger
+from action_records import log_committed_actions
 
 try:
     from camel.models import ModelFactory
@@ -733,6 +734,7 @@ def fetch_new_actions_from_db(
             _enrich_action_context(cursor, action_type, simplified_args, agent_names)
             
             actions.append({
+                'trace_rowid': rowid,
                 'agent_id': user_id,
                 'agent_name': agent_names.get(user_id, f'Agent_{user_id}'),
                 'action_type': action_type,
@@ -741,7 +743,7 @@ def fetch_new_actions_from_db(
         
         conn.close()
     except Exception as e:
-        print(f"读取数据库动作失败: {e}")
+        raise RuntimeError(f"读取数据库动作失败: {e}") from e
     
     return actions, new_last_rowid
 
@@ -1189,16 +1191,6 @@ async def run_twitter_simulation(
                     action_args={"content": content}
                 )
                 
-                if action_logger:
-                    action_logger.log_action(
-                        round_num=0,
-                        agent_id=agent_id,
-                        agent_name=agent_names.get(agent_id, f"Agent_{agent_id}"),
-                        action_type="CREATE_POST",
-                        action_args={"content": content}
-                    )
-                    total_actions += 1
-                    initial_action_count += 1
             except Exception:
                 pass
         
@@ -1206,6 +1198,9 @@ async def run_twitter_simulation(
             await result.env.step(initial_actions)
             log_info(f"已发布 {len(initial_actions)} 条初始帖子")
     
+    initial_action_count, last_rowid = log_committed_actions(
+        fetch_new_actions_from_db, db_path, last_rowid, agent_names, 0, action_logger)
+    total_actions += initial_action_count
     # 记录 round 0 结束
     if action_logger:
         action_logger.log_round_end(0, initial_action_count)
@@ -1266,7 +1261,8 @@ async def run_twitter_simulation(
                     agent_id=action_data['agent_id'],
                     agent_name=action_data['agent_name'],
                     action_type=action_data['action_type'],
-                    action_args=action_data['action_args']
+                    action_args=action_data['action_args'],
+                    source_record={'database': db_path, 'trace_rowid': action_data['trace_rowid'], 'origin': 'agent_action'}
                 )
                 total_actions += 1
                 round_action_count += 1
@@ -1388,16 +1384,6 @@ async def run_reddit_simulation(
                         action_args={"content": content}
                     )
                 
-                if action_logger:
-                    action_logger.log_action(
-                        round_num=0,
-                        agent_id=agent_id,
-                        agent_name=agent_names.get(agent_id, f"Agent_{agent_id}"),
-                        action_type="CREATE_POST",
-                        action_args={"content": content}
-                    )
-                    total_actions += 1
-                    initial_action_count += 1
             except Exception:
                 pass
         
@@ -1405,6 +1391,9 @@ async def run_reddit_simulation(
             await result.env.step(initial_actions)
             log_info(f"已发布 {len(initial_actions)} 条初始帖子")
     
+    initial_action_count, last_rowid = log_committed_actions(
+        fetch_new_actions_from_db, db_path, last_rowid, agent_names, 0, action_logger)
+    total_actions += initial_action_count
     # 记录 round 0 结束
     if action_logger:
         action_logger.log_round_end(0, initial_action_count)
@@ -1465,7 +1454,8 @@ async def run_reddit_simulation(
                     agent_id=action_data['agent_id'],
                     agent_name=action_data['agent_name'],
                     action_type=action_data['action_type'],
-                    action_args=action_data['action_args']
+                    action_args=action_data['action_args'],
+                    source_record={'database': db_path, 'trace_rowid': action_data['trace_rowid'], 'origin': 'agent_action'}
                 )
                 total_actions += 1
                 round_action_count += 1

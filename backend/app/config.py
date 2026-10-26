@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 # 加载项目根目录的 .env 文件
 # 路径: MiroFish/.env (相对于 backend/app/config.py)
-project_root_env = os.path.join(os.path.dirname(__file__), '../../.env')
+project_root_env = os.environ.get('MIROFISH_ENV_FILE', os.path.join(os.path.dirname(__file__), '../../.env'))
 
 if os.path.exists(project_root_env):
     load_dotenv(project_root_env, override=True)
@@ -31,6 +31,26 @@ class Config:
     
     # Zep配置
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY')
+    GRAPH_BACKEND = os.environ.get('GRAPH_BACKEND', 'zep_cloud')
+    GRAPHITI_SERVICE_URL = os.environ.get('GRAPHITI_SERVICE_URL', 'http://127.0.0.1:5101')
+    GRAPHITI_SERVICE_TOKEN = os.environ.get('GRAPHITI_SERVICE_TOKEN')
+    GRAPH_JOB_DEADLINE_SECONDS = int(os.environ.get('GRAPH_JOB_DEADLINE_SECONDS', '1800'))
+    GRAPH_SIMULATABLE_TYPES = [value.strip() for value in os.environ.get(
+        'GRAPH_SIMULATABLE_TYPES',
+        'Person,Organization,CommunityCommittee,Library,Volunteer,Resident,LocalBusiness,LocalBookstore,ParentGroup,ParentRepresentative,SocialMediaUser,CommunityGroup,Student,Professor,Journalist,Celebrity,Executive,Official,Lawyer,Doctor,University,Company,GovernmentAgency,MediaOutlet,Hospital,School,NGO'
+    ).split(',') if value.strip()]
+
+    @classmethod
+    def is_simulatable_type(cls, label):
+        if label in cls.GRAPH_SIMULATABLE_TYPES:
+            return True
+        if os.environ.get('GRAPH_SIMULATABLE_TYPES'):
+            return False
+        # Ontologies frequently specialize roles, e.g. ParentResident or
+        # NoiseSensitiveResident. Match participant roles, rather than every label.
+        return label.lower().endswith(('person','resident','volunteer','library','bookstore',
+            'committee','representative','organization','company','user','group','student',
+            'professor','journalist','official','executive','lawyer','doctor','ngo'))
     
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
@@ -66,9 +86,13 @@ class Config:
         errors: list[str] = []
         if not cls.LLM_API_KEY:
             errors.append("LLM_API_KEY 未配置")
-        if not cls.ZEP_API_KEY:
+        if cls.GRAPH_BACKEND not in {'zep_cloud', 'graphiti_local'}:
+            errors.append("GRAPH_BACKEND 必须为 zep_cloud 或 graphiti_local")
+        if cls.GRAPH_BACKEND == 'graphiti_local' and not cls.GRAPHITI_SERVICE_TOKEN:
+            errors.append("GRAPHITI_SERVICE_TOKEN 未配置")
+        if cls.GRAPH_BACKEND == 'zep_cloud' and not cls.ZEP_API_KEY:
             errors.append("ZEP_API_KEY 未配置")
-        if os.environ.get("ZEP_API_URL"):
+        if cls.GRAPH_BACKEND == 'zep_cloud' and os.environ.get("ZEP_API_URL"):
             errors.append("ZEP_API_URL 不受支持；MiroFish 仅连接 Zep Cloud")
         if cls.DEBUG:
             import warnings
