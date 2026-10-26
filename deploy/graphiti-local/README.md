@@ -2,6 +2,8 @@
 
 本实现使用独立 Graphiti 0.31.2 服务、Neo4j Community 和 CPU BGE-M3，不需要 Zep Cloud 密钥。Flask 不持有异步数据库连接。FalkorDB 尚未启用。Neo4j 镜像固定为已验证的 Linux ARM64 digest；其他架构需另外验证镜像。
 
+面向业务操作的完整步骤见 [操作手册](../../docs/MiroFish操作手册.md)，功能解释、实际结果与验收用例见 [案例与功能说明](../../docs/MiroFish案例与功能说明.md)。
+
 ## 安装与配置
 
 在项目根目录执行：

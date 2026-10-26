@@ -1,0 +1,114 @@
+{
+  "run": {
+    "project_id": "proj_63da5fa94cc8",
+    "graph_task_id": "job_233a0dcf3e1247d3ba42cac93a76d0c8",
+    "graph_id": "graph_ca2561b184f246c28e4c401383f40a18",
+    "simulation_id": "sim_cfa617bc3e3e",
+    "report_id": "report_605fe858947b"
+  },
+  "native_sources": {
+    "twitter": {
+      "logged_actions": 13,
+      "native_trace_records": 21,
+      "unique_trace_ids": 13,
+      "excluded_trace_actions": {
+        "sign_up": 8
+      },
+      "origins": {
+        "initial_configuration": 7,
+        "agent_action": 6
+      },
+      "action_types": {
+        "CREATE_POST": 13
+      }
+    },
+    "reddit": {
+      "logged_actions": 23,
+      "native_trace_records": 38,
+      "unique_trace_ids": 23,
+      "excluded_trace_actions": {
+        "sign_up": 8,
+        "refresh": 6,
+        "interview": 1
+      },
+      "origins": {
+        "initial_configuration": 7,
+        "agent_action": 16
+      },
+      "action_types": {
+        "CREATE_POST": 7,
+        "LIKE_POST": 10,
+        "CREATE_COMMENT": 6
+      }
+    }
+  },
+  "memory_receipt": {
+    "expected_watermark": 36,
+    "committed_watermark": 36,
+    "finalized": true,
+    "graph_id": "graph_ca2561b184f246c28e4c401383f40a18",
+    "run_id": "sim_cfa617bc3e3e",
+    "source_graph_id": "graph_ca2561b184f246c28e4c401383f40a18",
+    "run_graph_id": "graph_ca2561b184f246c28e4c401383f40a18",
+    "ingestion_job_ids": [
+      "job_1bb4ff054b894fbe8661859504f5e9cb",
+      "job_4bb28ebbd67e4c9a829fe98d8cf37e63",
+      "job_20631e422c334b088cd1b3dce92b5d07",
+      "job_dca8077cb6b4485ca1b33d5b2d388bf0",
+      "job_de18efb011814307b48c9419502c92dc"
+    ],
+    "event_count": 36,
+    "reference_time": "2026-10-26T01:08:33.525989+00:00"
+  },
+  "restore": {
+    "status": "passed",
+    "graph_id": "graph_ca2561b184f246c28e4c401383f40a18",
+    "node_count": 15,
+    "edge_count": 62,
+    "episode_count": 6,
+    "memory_watermark": 36,
+    "jobs": [
+      {
+        "id": "job_dca8077cb6b4485ca1b33d5b2d388bf0",
+        "status": "completed"
+      },
+      {
+        "id": "job_de18efb011814307b48c9419502c92dc",
+        "status": "completed"
+      },
+      {
+        "id": "job_20631e422c334b088cd1b3dce92b5d07",
+        "status": "completed"
+      },
+      {
+        "id": "job_1bb4ff054b894fbe8661859504f5e9cb",
+        "status": "completed"
+      },
+      {
+        "id": "job_4bb28ebbd67e4c9a829fe98d8cf37e63",
+        "status": "completed"
+      },
+      {
+        "id": "job_233a0dcf3e1247d3ba42cac93a76d0c8",
+        "status": "completed"
+      }
+    ],
+    "isolated_restore_volume": "mirofish-restore-e5e90025c9",
+    "image": "neo4j:5.26.0-community@sha256:69d0bc3286a613bdf6fe0165392f77f5459081f2ddaa04da8cbf6fa7286a38ce"
+  },
+  "recorded_on": "2026-10-26",
+  "initial_graph": {
+    "node_count": 8,
+    "edge_count": 13
+  },
+  "final_graph": {
+    "node_count": 15,
+    "edge_count": 62,
+    "episode_count": 6
+  },
+  "test_totals": {
+    "backend_and_root": 166,
+    "graphiti": 18,
+    "passed": 184
+  }
+}

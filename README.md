@@ -97,6 +97,8 @@ For the local Graphiti + Neo4j backend without a Zep Cloud key, see the [local d
 
 After local setup, run `./start.sh` to start Neo4j, Embedding, Graphiti, the backend, and the frontend. Use `./status.sh`, `./stop.sh`, or `./restart.sh` to manage the stack. Stopping preserves data; the existing shared LLM service is managed separately.
 
+For complete Chinese documentation, see the [operation manual](docs/MiroFish操作手册.md) and [case study and feature guide](docs/MiroFish案例与功能说明.md), including reusable inputs, the actual report, screenshots, and acceptance checks.
+
 ### Option 1: Source Code Deployment (Recommended)
 
 #### Prerequisites

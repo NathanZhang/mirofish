@@ -97,6 +97,8 @@ MiroFish 致力于打造映射现实的群体智能镜像，通过捕捉个体�
 
 完成本地配置后，在项目根目录执行 `./start.sh` 启动 Neo4j、Embedding、Graphiti、后端和前端；`./status.sh` 查看状态，`./stop.sh` 停止，`./restart.sh` 重启。停止保留数据，现有共享 LLM 服务独立管理。
 
+完整使用说明见 [MiroFish 操作手册](docs/MiroFish操作手册.md) 和 [案例与功能说明](docs/MiroFish案例与功能说明.md)，附可上传的共享阅读室材料、真实案例报告、截图和验收对照。
+
 ### 一、源码部署（推荐）
 
 #### 前置要求
