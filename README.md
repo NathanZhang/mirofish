@@ -99,6 +99,8 @@ After local setup, run `./start.sh` to start Neo4j, Embedding, Graphiti, the bac
 
 For complete Chinese documentation, see the [operation manual](docs/MiroFish操作手册.md) and [case study and feature guide](docs/MiroFish案例与功能说明.md), including reusable inputs, the actual report, screenshots, and acceptance checks.
 
+For development and maintenance, see the [technical architecture and main workflows](docs/MiroFish技术架构与主流程说明.md), covering components, data models, sequence diagrams, memory barriers, and recovery.
+
 ### Option 1: Source Code Deployment (Recommended)
 
 #### Prerequisites

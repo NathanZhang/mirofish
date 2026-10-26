@@ -619,6 +619,8 @@ curl --noproxy '*' -sS "$BASE_URL/api/simulation/$SIMULATION_ID/actions?platform
 
 `max_rounds` 是正整数；`force`、`enable_graph_memory_update` 等布尔参数使用 JSON 布尔值，不能写成字符串 `"true"`。本地模式需要开启记忆写回。
 
+本地验收使用 `platform: "parallel"`。源码核对发现，本地单平台请求虽然会选择统一脚本，但 Runner 尚未附加单平台命令行标志；不能保证只运行所选平台。使用单平台前需修复并补测，详见[技术说明的当前边界](MiroFish技术架构与主流程说明.md#17-验证结果与扩展边界)。
+
 双平台完成后，先做第 10 节访谈，再关闭环境并轮询终态。提前终止使用 `POST /api/simulation/stop`，请求体为 `{"simulation_id":"本次ID"}`。正常停止也可能需要等待记忆确认；不要把 stop 当成删除数据的接口。
 
 ### 14.3 报告和对话
