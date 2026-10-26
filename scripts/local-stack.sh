@@ -9,6 +9,7 @@ usage() {
 
 管理：Neo4j → CPU Embedding → Graphiti → Flask → Vue；停止时按相反顺序。
 启动后访问：http://127.0.0.1:3000
+局域网访问：在 deploy/graphiti-local/.env 设置 MIROFISH_WEB_HOST=0.0.0.0 后重启。
 日志：data/graphiti-local/{embedding,graphiti,backend,frontend}.log
 停止保留数据库卷、任务、人设、动作日志和报告。
 生成模型使用已配置的现有 LLM 服务，需事先启动。

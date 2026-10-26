@@ -57,6 +57,9 @@ def main():
             parser.exit(1,'Another start/stop/restart is in progress; retry after it finishes.\n')
     state=json.loads(STATE.read_text()) if STATE.exists() else {}
     env=configured_environment()
+    web_host=env.get('MIROFISH_WEB_HOST','127.0.0.1')
+    if web_host not in {'127.0.0.1','0.0.0.0'}:
+        parser.error('MIROFISH_WEB_HOST must be 127.0.0.1 (local) or 0.0.0.0 (LAN)')
     if args.action=='status':
         result={name:{'pid':p['pid'],'running':alive(p['pid'],p['identity'],p.get('cwd'))} for name,p in state.items()}
         containers=subprocess.run(COMPOSE+['ps','--all','--format','json'],capture_output=True,text=True,env=env)
@@ -90,7 +93,7 @@ def main():
             ('embedding',[str(ROOT/'services/embedding/.venv/bin/python'),'-m','uvicorn','app:app','--host','127.0.0.1','--port','5102'],ROOT/'services/embedding','app:app','http://127.0.0.1:5102/health'),
             ('graphiti',[str(ROOT/'services/graphiti_local/.venv/bin/python'),'-m','uvicorn','app.main:app','--host','127.0.0.1','--port','5101','--no-access-log'],ROOT/'services/graphiti_local','app.main:app','http://127.0.0.1:5101/internal/v1/readyz'),
             ('backend',[str(ROOT/'backend/.venv/bin/python'),str(ROOT/'backend/run.py')],ROOT/'backend',str(ROOT/'backend/run.py'),'http://127.0.0.1:5001/ready'),
-            ('frontend',['npm','run','dev','--','--host','127.0.0.1','--open','false'],ROOT/'frontend','npm run dev','http://127.0.0.1:3000/'),
+            ('frontend',['npm','run','dev','--','--host',web_host,'--open','false'],ROOT/'frontend','npm run dev','http://127.0.0.1:3000/'),
         ]
         for name,command,cwd,identity,url in components:
             if name in state and alive(state[name]['pid'],state[name]['identity'],state[name].get('cwd')):
@@ -118,6 +121,8 @@ def main():
             else:raise RuntimeError(f'{name} did not become ready; process retained for diagnosis')
             print(f'{name}: started pid={process.pid}',flush=True)
         print('Ready: http://127.0.0.1:3000  (API: http://127.0.0.1:5001)',flush=True)
+        if web_host=='0.0.0.0':
+            print('LAN access enabled: http://<this-machine-LAN-IP>:3000 (API proxied through /api)',flush=True)
 
 
 if __name__=='__main__':main()

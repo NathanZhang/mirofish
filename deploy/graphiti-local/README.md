@@ -36,7 +36,13 @@ services/embedding/.venv/bin/python services/embedding/download_model.py
 
 脚本可从任意工作目录通过绝对路径执行，提供 `--help`。底层入口仍为 `services/graphiti_local/.venv/bin/python deploy/graphiti-local/manage.py {start|stop|restart|status}`。已有共享 LLM 服务需事先启动，脚本使用配置中的生成端点，启停仅覆盖本项目的五个服务。运行前先完成上面的安装与环境配置；脚本不会自动安装依赖或下载权重。
 
-启动顺序为 Neo4j → Embedding → Graphiti 索引与 Worker → Flask → Vue。默认端口分别为 7687/7474、5102、5101、5001、3000；均应只监听本机。管理脚本仅停止自身记录且命令匹配的进程，停止不会删除卷。重复启动复用已经运行且就绪的服务，并发启停会被锁拒绝。手工启动的同端口服务须用原生命周期管理，不能混用两个启动器。日志位于 `data/graphiti-local/{embedding,graphiti,backend,frontend}.log`；Neo4j 日志可通过 `docker compose --env-file deploy/graphiti-local/.env -f deploy/graphiti-local/compose.yaml logs neo4j` 查看。
+启动顺序为 Neo4j → Embedding → Graphiti 索引与 Worker → Flask → Vue。默认端口分别为 7687/7474、5102、5101、5001、3000；默认均监听本机。管理脚本仅停止自身记录且命令匹配的进程，停止不会删除卷。重复启动复用已经运行且就绪的服务，并发启停会被锁拒绝。手工启动的同端口服务须用原生命周期管理，不能混用两个启动器。日志位于 `data/graphiti-local/{embedding,graphiti,backend,frontend}.log`；Neo4j 日志可通过 `docker compose --env-file deploy/graphiti-local/.env -f deploy/graphiti-local/compose.yaml logs neo4j` 查看。
+
+### 局域网访问
+
+在 `deploy/graphiti-local/.env` 中设置 `MIROFISH_WEB_HOST=0.0.0.0`，再执行 `./restart.sh`。同一局域网的设备通过 `http://<本机局域网IPv4>:3000` 访问首页和报告，接口请求使用该地址下的 `/api` 反向代理。浏览器无需直接访问 5001，也不要将 `VITE_API_BASE_URL` 设置成客户端自己的 `localhost`。其余本地服务继续只监听 loopback。前端固定使用 3000；端口冲突直接失败，不自动换端口。
+
+`ip -4 address` 可查看本机地址。如果已监听 `0.0.0.0:3000` 且本机使用局域网 IP 能访问，但其他设备仍超时，检查主机防火墙的 TCP 3000 入站规则和路由器的客户端隔离设置。`MIROFISH_WEB_HOST=127.0.0.1` 可切回仅本机访问。
 
 `/health` 与 Graphiti `/healthz` 检查存活；Flask `/ready` 和经过 Bearer 认证的 Graphiti `/internal/v1/readyz` 检查数据库、SQLite、实际模型别名及向量维度。就绪检查不执行生成推理。API 协议版本为 `X-Graph-Protocol: 1`，返回请求 ID。模型调用记录写入 `data/graphiti-local/model-calls.jsonl`，不包含凭据。
 
