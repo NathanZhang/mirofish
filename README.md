@@ -101,6 +101,8 @@ For complete Chinese documentation, see the [operation manual](docs/MiroFish操�
 
 For development and maintenance, see the [technical architecture and main workflows](docs/MiroFish技术架构与主流程说明.md), covering components, data models, sequence diagrams, memory barriers, and recovery.
 
+For application planning, see the [use case analysis report](docs/MiroFish应用场景分析报告.md), comparing eight scenarios, pilot priorities, evaluation methods, and current limitations.
+
 ### Option 1: Source Code Deployment (Recommended)
 
 #### Prerequisites
